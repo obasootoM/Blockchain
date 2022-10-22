@@ -10,7 +10,7 @@ import (
 	"math/big"
 )
 
-const Difficulty = 12
+const Difficulty = 18
 
 type ProofOfWork struct {
 	Block  *Block
@@ -29,7 +29,7 @@ func (p *ProofOfWork) InitData(ounce int) []byte {
 		p.Block.PrevHash,
 		p.Block.Data,
 		ToDec(int64(ounce)),
-		ToDec(int64(-Difficulty)),
+		ToDec(int64(Difficulty)),
 	}, []byte{})
 
 	return data
@@ -63,4 +63,12 @@ func (p *ProofOfWork) Run() (int, []byte) {
 	}
 	fmt.Println()
 	return ounce, hash[:]
+}
+
+func (prof *ProofOfWork) Validate() bool{
+   var intHash big.Int
+   pow := prof.InitData(prof.Block.Ounce)
+   hash := sha256.Sum256(pow)
+   intHash.SetBytes(hash[:])
+   return intHash.Cmp(prof.Target) == -1
 }
