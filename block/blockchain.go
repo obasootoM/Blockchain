@@ -23,7 +23,7 @@ type BlockchainIterator struct {
 func (chain *Blockchain) AddBlock(data string) {
 	var lastHash []byte
 
-	err := chain.Database.View(func(txn *badger.Txn) error {
+	err := chain.Database.View(func(txn *badger.Txn) error { //read only
 		item, err := txn.Get([]byte("lh"))
 		ErrorHandler(err)
 		lastHash, err = item.Value()
@@ -31,7 +31,7 @@ func (chain *Blockchain) AddBlock(data string) {
 	})
 	ErrorHandler(err)
 	newBlock := CreateBlock(data, lastHash)
-	err = chain.Database.Update(func(txn *badger.Txn) error {
+	err = chain.Database.Update(func(txn *badger.Txn) error { //read and write
 		err = txn.Set(newBlock.Hash, newBlock.Serialize())
 		ErrorHandler(err)
 		err = txn.Set([]byte("lh"), newBlock.Hash)
