@@ -27,13 +27,15 @@ func NewProof(b *Block) *ProofOfWork {
 func (p *ProofOfWork) InitData(ounce int) []byte {
 	data := bytes.Join([][]byte{
 		p.Block.PrevHash,
-		p.Block.Data,
+		p.Block.HashTransaction(),
 		ToDec(int64(ounce)),
 		ToDec(int64(Difficulty)),
 	}, []byte{})
 
 	return data
 }
+
+
 
 func ToDec(num int64) []byte {
 	buff := new(bytes.Buffer)

@@ -2,20 +2,30 @@ package block
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/gob"
 
 	"log"
 )
 
 type Block struct {
-	Data     []byte
+	Transaction []*Transaction
 	Hash     []byte
 	PrevHash []byte
 	Ounce    int
 }
+func (b *Block) HashTransaction() []byte{
+    var hashes [][]byte
+	var hash [32]byte
+    for _,tx := range b.Transaction {
+		hashes = append(hashes, tx.ID)
 
-func CreateBlock(data string, prevHash []byte) *Block {
-	block := &Block{[]byte(data), []byte{}, prevHash, 0}
+	}
+	hash = sha256.Sum256(bytes.Join(hashes, []byte{}))
+	return hash[:]
+}
+func CreateBlock(tx []*Transaction, prevHash []byte) *Block {
+	block := &Block{tx, []byte{}, prevHash, 0}
 	pow := NewProof(block)
 	Nounce, hash := pow.Run()
 	block.Ounce = Nounce
@@ -23,8 +33,8 @@ func CreateBlock(data string, prevHash []byte) *Block {
 	return block
 }
 
-func Genesis() *Block {
-	block := CreateBlock("genesis",[]byte{})
+func Genesis(coinbase *Transaction) *Block {
+	block := CreateBlock([]*Transaction{coinbase},[]byte{})
 	return block
 }
 
