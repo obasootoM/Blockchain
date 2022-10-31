@@ -115,7 +115,7 @@ func (pri *Commandline) Run() {
 		pri.createblockchain(*createblockchainaddress)
 	}
 	if sendCmd.Parsed() {
-		if *sendFrom == "" && *sendTo == "" && *sendAmmount == 0 {
+		if *sendFrom == "" || *sendTo == "" || *sendAmmount <= 0 {
 			runtime.Goexit()
 		}
 		pri.send(*sendFrom, *sendTo, *sendAmmount)
