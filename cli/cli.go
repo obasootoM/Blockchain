@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/obasootom/Blockchain/block"
+	"github.com/obasootom/Blockchain/wallet"
 )
 
 
@@ -20,6 +21,8 @@ func (pri *Commandline) PrintLine() {
 	fmt.Println("getbalance  -address ADDRESS - get the balance for address")
 	fmt.Println("create blockchain -address ADDRESS create blockchain")
 	fmt.Println("send -from FROM -to TO  -amount AMOUNT - Send amount")
+	fmt.Println("createwallet - create a new wallet")
+	fmt.Println("listaddress - list the address in our wallet file")
 
 }
 func (pri *Commandline) validAgr() {
@@ -49,6 +52,19 @@ func (pri *Commandline) printChain() {
 		}
 	}
 }
+func (cli *Commandline) createwallet() {
+	wallet,_ := wallet.CreateWallet()
+	address := wallet.AddWallet()
+	wallet.Savefile()
+	fmt.Printf("new address is %s\n",address)
+}
+func (cli *Commandline) listaddress() {
+	wallet ,_ := wallet.CreateWallet()
+	address := wallet.GetAllAddress()
+	for _,addresses := range address {
+		fmt.Println(addresses)
+	}
+}
 func (cli *Commandline) getBlockchain(address string) {
 	chain := block.ContnueBlockchain(address)
 	defer chain.Database.Close()
@@ -73,12 +89,15 @@ func (pri *Commandline) Run() {
 	getbalanceCmd := flag.NewFlagSet("getbalance", flag.ExitOnError)
 	createchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
 	sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
+	creatwewalletcmd := flag.NewFlagSet("createwallet", flag.ExitOnError)
+	listaddresscmd := flag.NewFlagSet("listaddress",flag.ExitOnError)
 
 	getbalanceAddress := getbalanceCmd.String("address", "", "the address")
 	createblockchainaddress := createchainCmd.String("address", "", "the address")
 	sendTo := sendCmd.String("to", "", "destinaton wallet address")
 	sendFrom := sendCmd.String("from", "", "source wallet")
 	sendAmmount := sendCmd.Int("ammount", 0, "ammount to send")
+
 
 	switch os.Args[1] {
 	case "getbalance":
@@ -92,6 +111,12 @@ func (pri *Commandline) Run() {
 		block.ErrorHandler(err)
 	case "send":
 		err := sendCmd.Parse(os.Args[2:])
+		block.ErrorHandler(err)
+	case"createwallet":
+		err := creatwewalletcmd.Parse(os.Args[2:])
+		block.ErrorHandler(err)
+	case "listaddress":
+		err := listaddresscmd.Parse(os.Args[2:])
 		block.ErrorHandler(err)
 	default:
 		pri.PrintLine()
@@ -113,6 +138,12 @@ func (pri *Commandline) Run() {
 			runtime.Goexit()
 		}
 		pri.createblockchain(*createblockchainaddress)
+	}
+	if creatwewalletcmd.Parsed() {
+		pri.createwallet()
+	}
+	if listaddresscmd.Parsed() {
+		pri.listaddress()
 	}
 	if sendCmd.Parsed() {
 		if *sendFrom == "" || *sendTo == "" || *sendAmmount <= 0 {
