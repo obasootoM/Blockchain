@@ -1,7 +1,10 @@
 package block
 
 import (
+	"bytes"
+	"crypto/ecdsa"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -25,7 +28,24 @@ type BlockchainIterator struct {
 	Database    *badger.DB
 }
 
+func (chain Blockchain) FindTransaction(id []byte) (Transaction,error) {
+	block := chain.Iterator()
 
+	for {
+		bloc := block.Next()
+
+		for _, tx := range bloc.Transaction {
+			if bytes.Compare(tx.ID,id) == 0 {
+				return *tx,nil
+			}
+		}
+		if len(bloc.PrevHash) == 0 {
+			break
+		}
+
+	}
+	return Transaction{},errors.New("transaction does not exit")
+}
 
 func (chain *Blockchain) AddBlock(tx []*Transaction) {
 	var lastHash []byte
@@ -81,7 +101,6 @@ func InitBlockchain(address string) *Blockchain {
 		lastHash = genesis.Hash
 		return err
 	})
-
 	block := Blockchain{
 		LastHash: lastHash,
 		Database: db,
@@ -92,7 +111,7 @@ func InitBlockchain(address string) *Blockchain {
 
 
 func ContnueBlockchain(address string) *Blockchain {
-	if DBExist() == false {
+	if !DBExist()  {
 		fmt.Println("NO existing blockchain found, create one")
 		runtime.Goexit()
 	}
@@ -117,7 +136,26 @@ func ContnueBlockchain(address string) *Blockchain {
 	return &chain
 }
 
+func (bl *Blockchain) SignTransaction(tx *Transaction, privateKey ecdsa.PrivateKey) {
+	prevTxs := make(map[string]Transaction)
+	for _,in := range tx.Input {
+		prevTx ,err := bl.FindTransaction(in.ID)
+		ErrorHandler(err)
+		prevTxs[hex.EncodeToString(prevTx.ID)] = prevTx
+	}
+	tx.Sign(privateKey,prevTxs)
+}
 
+
+func (bl *Blockchain) VerifyTransaction(tx *Transaction) bool {
+	prevTx := make(map[string]Transaction)
+	for _,in := range tx.Input{
+		prevT, err := bl.FindTransaction(in.ID) 
+		ErrorHandler(err)
+		prevTx[hex.EncodeToString(prevT.ID)] = prevT
+	}
+	return tx.Verify(prevTx)
+}
 
 func (chain *Blockchain) Iterator() *BlockchainIterator {
 	iter := &BlockchainIterator{
@@ -141,7 +179,7 @@ func (iter *BlockchainIterator) Next() *Block {
 }
 
 
-func (block *Blockchain) FindUnspentTransaction(address string) []Transaction {
+func (block *Blockchain) FindUnspentTransaction(pubKey []byte) []Transaction {
 	var UspentTx []Transaction
 	spentTx := make(map[string][]int)
 	iter := block.Iterator()
@@ -159,13 +197,13 @@ func (block *Blockchain) FindUnspentTransaction(address string) []Transaction {
 
 					}
 				}
-				if out.CanBeUnLocked(address) {
+				if out.IsLocked(pubKey) {
 					UspentTx = append(UspentTx, *tx)
 				}
 			}
 			if !tx.IsCoinBase() {
 				for _, in := range tx.Input {
-					if in.CanUnLock(address) {
+					if in.UsesKey(pubKey) {
 						inTx := hex.EncodeToString(in.ID)
 						spentTx[inTx] = append(spentTx[inTx], in.Out)
 					}
@@ -181,12 +219,12 @@ func (block *Blockchain) FindUnspentTransaction(address string) []Transaction {
 
 
 
-func (block *Blockchain) FindTx(address string) []TxtOutput {
+func (block *Blockchain) FindTx(pubKey []byte) []TxtOutput {
 	var txOutput []TxtOutput
-	unspentransaction := block.FindUnspentTransaction(address)
+	unspentransaction := block.FindUnspentTransaction(pubKey)
      for _,tx := range unspentransaction {
 		for _, out := range tx.Output{
-			if out.CanBeUnLocked(address) {
+			if out.IsLocked(pubKey) {
 				txOutput = append(txOutput, out)
 
 			}
@@ -195,15 +233,15 @@ func (block *Blockchain) FindTx(address string) []TxtOutput {
 	return txOutput
 }
 
-func (block *Blockchain) FindSpendableOutput(address string, ammount int) (int, map[string][]int) {
+func (block *Blockchain) FindSpendableOutput(pubKey []byte, ammount int) (int, map[string][]int) {
 	unspentOut := make(map[string][]int)
-	unspentTx := block.FindUnspentTransaction(address)
+	unspentTx := block.FindUnspentTransaction(pubKey)
 	accumulated := 0
 	Work:
        for _,tx := range unspentTx {
 		txID := hex.EncodeToString(tx.ID)
            for outID, out := range tx.Output {
-			if out.CanBeUnLocked(address) && accumulated < ammount {
+			if out.IsLocked(pubKey) && accumulated < ammount {
 				accumulated += out.Value
 				unspentOut[txID] = append(unspentOut[txID],outID)
 
@@ -217,3 +255,5 @@ func (block *Blockchain) FindSpendableOutput(address string, ammount int) (int, 
 	return accumulated,unspentOut
 
 }
+
+
