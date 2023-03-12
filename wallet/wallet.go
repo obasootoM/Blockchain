@@ -11,31 +11,32 @@ import (
 
 	"golang.org/x/crypto/ripemd160"
 )
-const(
+
+const (
 	checksumLength = 4
-	version = byte(0x00) //hexadecimal representation of zero
+	version        = byte(0x00) //hexadecimal representation of zero
 )
 
 type Wallet struct {
-	PrivateKey ecdsa.PrivateKey  //private key
-	PublicKey []byte   //public key
+	PrivateKey ecdsa.PrivateKey //private key
+	PublicKey  []byte           //public key
 }
 
-func NewPairKey() (ecdsa.PrivateKey,[]byte) {
+func NewPairKey() (ecdsa.PrivateKey, []byte) {
 	curve := elliptic.P256()
 
-	private, err := ecdsa.GenerateKey(curve,rand.Reader)
-    if err != nil {
-       log.Panic(err)
+	private, err := ecdsa.GenerateKey(curve, rand.Reader)
+	if err != nil {
+		log.Panic(err)
 	}
-	pub := append(private.X.Bytes(),private.Y.Bytes()...)
-	return *private,pub
+	pub := append(private.X.Bytes(), private.Y.Bytes()...)
+	return *private, pub
 
 }
 
 func MakeWallet() *Wallet {
-	private,public := NewPairKey()
-	wallet := Wallet{private,public}
+	private, public := NewPairKey()
+	wallet := Wallet{private, public}
 
 	return &wallet
 }
@@ -47,24 +48,23 @@ func PublicKeyHash(publickey []byte) []byte {
 	if err != nil {
 		log.Panic(err)
 	}
-   pubHahpri := hash.Sum(nil)
-   return pubHahpri
+	pubHashkey := hash.Sum(nil)
+	return pubHashkey
 }
-
 
 func Checksum(payload []byte) []byte {
 	firstHash := sha256.Sum256(payload)
-	secondHah := sha256.Sum256(firstHash[:])
+	secondHash := sha256.Sum256(firstHash[:])
 
-	return secondHah[:checksumLength]
+	return secondHash[:checksumLength]
 }
 
 func (w *Wallet) Address() []byte {
 	publicHash := PublicKeyHash(w.PublicKey)
-	versionHash := append([]byte{version},publicHash...)
+	versionHash := append([]byte{version}, publicHash...)
 	checksumHash := Checksum(versionHash)
 	fullHash := append(versionHash, checksumHash...)
-	address  := Base58Ecode(fullHash)
+	address := Base58Encode(fullHash)
 
 	// fmt.Printf("pub key %x\n",w.PublicKey)
 	// fmt.Printf("pub hash %x\n",publicHash)
@@ -72,12 +72,12 @@ func (w *Wallet) Address() []byte {
 	return address
 }
 
-func Validate(address string) bool{
-   pubkeyHas := Base58Decode([]byte(address))
-   actualChecksum := pubkeyHas[len(pubkeyHas) - checksumLength:]
-   versions := pubkeyHas[0]
-   pubkeyHas = pubkeyHas[1: len(pubkeyHas) - checksumLength]
-   targetChecksum := Checksum(append([]byte{versions},pubkeyHas...))
+func Validate(address string) bool {
+	pubkeyHash := Base58Decode([]byte(address))
+	actualChecksum := pubkeyHash[len(pubkeyHash)-checksumLength:]
+	versions := pubkeyHash[0]
+	pubkeyHash = pubkeyHash[1 : len(pubkeyHash)-checksumLength]
+	targetChecksum := Checksum(append([]byte{versions}, pubkeyHash...))
 
-   return bytes.Compare(actualChecksum,targetChecksum) == 0
+	return bytes.Compare(actualChecksum, targetChecksum) == 0
 }
