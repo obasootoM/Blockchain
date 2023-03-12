@@ -2,7 +2,8 @@ package block
 
 import (
 	"bytes"
-	"crypto/sha256"
+	"time"
+
 	"encoding/gob"
 
 	"log"
@@ -10,22 +11,25 @@ import (
 
 type Block struct {
 	Transaction []*Transaction
-	Hash     []byte
-	PrevHash []byte
-	Ounce    int
+	Hash        []byte
+	PrevHash    []byte
+	Ounce       int
+	Timestamp   int64
+	Height      int
 }
-func (b *Block) HashTransaction() []byte{
-    var hashes [][]byte
-	var hash [32]byte
-    for _,tx := range b.Transaction {
-		hashes = append(hashes, tx.ID)
+
+func (b *Block) HashTransaction() []byte {
+	var hashes [][]byte
+
+	for _, tx := range b.Transaction {
+		hashes = append(hashes, tx.Serialize())
 
 	}
-	hash = sha256.Sum256(bytes.Join(hashes, []byte{}))
-	return hash[:]
+	tree := NewMerkleTree(hashes)
+	return tree.RootNode.Data
 }
-func CreateBlock(tx []*Transaction, prevHash []byte) *Block {
-	block := &Block{tx, []byte{}, prevHash, 0}
+func CreateBlock(tx []*Transaction, prevHash []byte, height int) *Block {
+	block := &Block{tx, []byte{}, prevHash, 0,time.Now().Unix(), height}
 	pow := NewProof(block)
 	Nounce, hash := pow.Run()
 	block.Ounce = Nounce
@@ -34,7 +38,7 @@ func CreateBlock(tx []*Transaction, prevHash []byte) *Block {
 }
 
 func Genesis(coinbase *Transaction) *Block {
-	block := CreateBlock([]*Transaction{coinbase},[]byte{})
+	block := CreateBlock([]*Transaction{coinbase}, []byte{},0)
 	return block
 }
 

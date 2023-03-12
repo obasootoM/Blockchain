@@ -57,19 +57,19 @@ func CreateWallet() (*Wallets, error) {
 	return &wallet, err
 }
 
-func (w Wallets) GetWallet(address string) Wallet {
+func (w *Wallets) GetWallet(address string) Wallet {
 	return *w.Wallets[address]
 
 }
 
-func (w Wallets) GetAllAddress() []string {
+func (w *Wallets) GetAllAddress() []string {
 	var address []string
 	for addressess := range w.Wallets {
 		address = append(address, addressess)
 	}
 	return address
 }
-func (w Wallets) AddWallet() string {
+func (w *Wallets) AddWallet() string {
 	wallet := MakeWallet()
 	address := fmt.Sprintf("%s", wallet.Address())
 	w.Wallets[address] = wallet

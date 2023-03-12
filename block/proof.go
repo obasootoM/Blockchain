@@ -67,10 +67,10 @@ func (p *ProofOfWork) Run() (int, []byte) {
 	return ounce, hash[:]
 }
 
-func (prof *ProofOfWork) Validate() bool{
+func (proof *ProofOfWork) Validate() bool{
    var intHash big.Int
-   pow := prof.InitData(prof.Block.Ounce)
+   pow := proof.InitData(proof.Block.Ounce)
    hash := sha256.Sum256(pow)
    intHash.SetBytes(hash[:])
-   return intHash.Cmp(prof.Target) == -1
+   return intHash.Cmp(proof.Target) == -1
 }

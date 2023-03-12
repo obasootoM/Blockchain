@@ -33,20 +33,20 @@ func (tx Transaction) Serialize() []byte {
 }
 func (tx Transaction) String() string {
 	var line []string
-	line = append(line, fmt.Sprintf("-- Transaction %x", tx.ID))
+	line = append(line, fmt.Sprintf("-- Transaction %x:", tx.ID))
 	for in, input := range tx.Input {
-		line = append(line, fmt.Sprintf("input %d", in))
-		line = append(line, fmt.Sprintf("txid %x", input.ID))
-		line = append(line, fmt.Sprintf("out %d", input.Out))
-		line = append(line, fmt.Sprintf("signature %x", input.Sig))
-		line = append(line, fmt.Sprintf("pubkey %x", input.Pubkey))
+		line = append(line, fmt.Sprintf("input: %d", in))
+		line = append(line, fmt.Sprintf("txID: %d", input.ID))
+		line = append(line, fmt.Sprintf("out: %d", input.Out))
+		line = append(line, fmt.Sprintf("signature: %x", input.Sig))
+		line = append(line, fmt.Sprintf("pubkey: %x", input.Pubkey))
 	}
 	for out, output := range tx.Output {
-		line = append(line, fmt.Sprintf("output %x", out))
-		line = append(line, fmt.Sprintf("value %d", output.Value))
-		line = append(line, fmt.Sprintf("script %x", output.PubKey))
+		line = append(line, fmt.Sprintf("output: %d", out))
+		line = append(line, fmt.Sprintf("value: %d", output.Value))
+		line = append(line, fmt.Sprintf("script: %x", output.PubKeyHash))
 	}
-	return strings.Join(line,"\n")
+	return strings.Join(line, "\n")
 }
 func (tx *Transaction) Hash() []byte {
 	var hash [32]byte
@@ -56,8 +56,8 @@ func (tx *Transaction) Hash() []byte {
 	return hash[:]
 
 }
-func (tx Transaction) Sign(privateKey ecdsa.PrivateKey, prevTx map[string]Transaction) {
-	if tx.IsCoinBase() {
+func (tx *Transaction) Sign(privateKey ecdsa.PrivateKey, prevTx map[string]Transaction) {
+	if !tx.IsCoinBase() {  //bool
 		return
 	}
 
@@ -71,7 +71,7 @@ func (tx Transaction) Sign(privateKey ecdsa.PrivateKey, prevTx map[string]Transa
 	for inID, in := range txCopy.Input {
 		prevtx := prevTx[hex.EncodeToString(in.ID)]
 		txCopy.Input[inID].Sig = nil
-		txCopy.Input[inID].Pubkey = prevtx.Output[in.Out].PubKey
+		txCopy.Input[inID].Pubkey = prevtx.Output[in.Out].PubKeyHash
 		txCopy.ID = tx.Hash()
 		txCopy.Input[inID].Pubkey = nil
 
@@ -90,7 +90,7 @@ func (tx *Transaction) TrimCopy() Transaction {
 	}
 
 	for _, out := range tx.Output {
-		txoutput = append(txoutput, TxtOutput{out.Value, out.PubKey})
+		txoutput = append(txoutput, TxtOutput{out.Value, out.PubKeyHash})
 	}
 	txCopy := Transaction{tx.ID, txinput, txoutput}
 	return txCopy
@@ -98,10 +98,13 @@ func (tx *Transaction) TrimCopy() Transaction {
 }
 func Coinbase(to, data string) *Transaction {
 	if data == "" {
-		data = fmt.Sprintf("coin to %s", to)
+		randData := make([]byte,24)
+		_,err := rand.Read(randData)
+		ErrorHandler(err)
+		data = fmt.Sprintf("coin to %s", randData)
 	}
 	txinp := TxtInput{[]byte{}, -1, nil, []byte(data)}
-	txout := NewTx(100, to)
+	txout := NewTx(20, to)
 
 	tx := Transaction{nil, []TxtInput{txinp}, []TxtOutput{*txout}}
 	tx.SetId()
@@ -120,14 +123,14 @@ func (t *Transaction) SetId() {
 	t.ID = hash[:]
 }
 
-func NewTransaction(from, to string, ammount int, block *Blockchain) *Transaction {
+func NewTransaction(from, to string, ammount int, utxo *UTXO) *Transaction {
 	var output []TxtOutput
 	var input []TxtInput
 	walet, err := wallet.CreateWallet()
 	ErrorHandler(err)
 	w := walet.GetWallet(from)
 	pubkeyHash := wallet.PublicKeyHash(w.PublicKey)
-	acc, validOut := block.FindSpendableOutput(pubkeyHash, ammount)
+	acc, validOut := utxo.FindSpendableOutputs(pubkeyHash, ammount)
 	if acc < ammount {
 		log.Panic("not enough fund")
 	}
@@ -135,6 +138,7 @@ func NewTransaction(from, to string, ammount int, block *Blockchain) *Transactio
 		txID, err := hex.DecodeString(txid)
 		ErrorHandler(err)
 		for _, out := range outs {
+
 			inputs := TxtInput{txID, out, nil, w.PublicKey}
 			input = append(input, inputs)
 
@@ -150,12 +154,12 @@ func NewTransaction(from, to string, ammount int, block *Blockchain) *Transactio
 		output,
 	}
 	tx.ID = tx.Hash()
-	block.SignTransaction(&tx, w.PrivateKey)
+	utxo.BlockChain.SignTransaction(&tx, w.PrivateKey)
 	return &tx
 }
 
 func (tx *Transaction) Verify(prevTx map[string]Transaction) bool {
-	if tx.IsCoinBase() {
+	if !tx.IsCoinBase() {  //bool
 		return true
 	}
 	for _, in := range tx.Input {
@@ -169,7 +173,7 @@ func (tx *Transaction) Verify(prevTx map[string]Transaction) bool {
 	for inID, in := range tx.Input {
 		prevTx := prevTx[hex.EncodeToString(in.ID)]
 		txCopy.Input[inID].Sig = nil
-		txCopy.Input[inID].Pubkey = prevTx.Output[in.Out].PubKey
+		txCopy.Input[inID].Pubkey = prevTx.Output[in.Out].PubKeyHash
 		txCopy.ID = txCopy.Hash()
 		txCopy.Input[inID].Pubkey = nil
 
@@ -192,4 +196,15 @@ func (tx *Transaction) Verify(prevTx map[string]Transaction) bool {
 		}
 	}
 	return true
+}
+
+func DeserailzationTransation(tx []byte) Transaction {
+	var transaction Transaction
+
+	decode := gob.NewDecoder(bytes.NewReader(tx))
+	err := decode.Decode(transaction)
+	if err != nil {
+		log.Panic(err)
+	}
+	return transaction
 }
